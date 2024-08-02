@@ -1,4 +1,4 @@
-package tbank.project.Configuration;
+package tbank.project.configuration;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
