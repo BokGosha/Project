@@ -1,86 +1,41 @@
 package tbank.project;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import org.springframework.web.server.ResponseStatusException;
+import tbank.project.models.Translation;
+import tbank.project.models.TranslationRequest;
 
 @Service
 @RequiredArgsConstructor
 public class TranslationService {
-    private final RestTemplate restTemplate;
-    private final DataSource dataSource;
+    private final TranslationProcess translationProcess;
+    private final TranslationRepository translationRepository;
 
     public String giveTranslation(String clientIp, String text, String sourceLanguage, String targetLanguage) {
-        List<String> wordList = List.of(text.split(" "));
-        List<CompletableFuture<String>> futures = new ArrayList<>();
-        List<String> translatedWords = new ArrayList<>();
+        checkSupportedLanguages(sourceLanguage, targetLanguage);
 
-        try (Connection connection = dataSource.getConnection()) {
-            for (String word : wordList) {
-                CompletableFuture<String> future = CompletableFuture
-                        .supplyAsync(() -> translateWord(word, sourceLanguage, targetLanguage));
+        TranslationRequest translationRequest = new TranslationRequest(text, sourceLanguage, targetLanguage);
 
-                futures.add(future);
-            }
+        String translatedText = translationProcess.translate(translationRequest);
 
-            for (CompletableFuture<String> future : futures) {
-                translatedWords.add(future.join());
-            }
+        Translation translation = new Translation(clientIp, text, translatedText);
 
-            String translatedText = String.join(" ", translatedWords);
+        translationRepository.save(translation);
 
-            saveTranslationToDatabase(connection, clientIp, text, translatedText);
-
-            return translatedText;
-        } catch (SQLException e) {
-            throw new RuntimeException("Ошибка подключения к базе данных", e);
-        }
+        return translatedText;
     }
 
-    private void saveTranslationToDatabase(Connection connection,
-            String clientIp,
-            String originalText,
-            String translatedText) {
-        try (PreparedStatement statement = connection.prepareStatement("INSERT INTO translation " +
-                "(client_ip, original_text, translated_text) VALUES (?, ?, ?)")) {
-
-            statement.setString(1, clientIp);
-            statement.setString(2, originalText);
-            statement.setString(3, translatedText);
-
-            statement.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Не удалось сохранить перевод в базе данных", e);
-        }
-    }
-
-    private String translateWord(String word, String sourceLanguage, String targetLanguage) {
-        if (!word.isEmpty()) {
-            String url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl={sourceLanguage}&tl=" +
-                    "{targetLanguage}&dt=t&q={word}";
-
-            try {
-                String response = restTemplate.getForObject(url, String.class, sourceLanguage, targetLanguage, word);
-
-                JsonNode rootNode = new ObjectMapper().readTree(response);
-
-                return rootNode.get(0).get(0).get(0).asText();
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException("Ошибка при обработке JSON-ответа из Google Translate API: ", e);
-            }
+    private void checkSupportedLanguages(String sourceLanguage, String targetLanguage) {
+        if (!SupportedLanguages.supportedLanguage(sourceLanguage)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Язык источника " + sourceLanguage + " не поддерживается Google Translate.");
         }
 
-        return "";
+        if (!SupportedLanguages.supportedLanguage(targetLanguage)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Язык перевода " + targetLanguage + " не поддерживается Google Translate.");
+        }
     }
 }
