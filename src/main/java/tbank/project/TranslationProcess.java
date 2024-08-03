@@ -19,6 +19,7 @@ import java.util.concurrent.Executors;
 public class TranslationProcess {
     private final RestTemplate restTemplate;
     private static final Executor TRANSLATION_EXECUTOR = Executors.newFixedThreadPool(10);
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     public String translate(TranslationRequest translationRequest) {
         List<String> wordList = List.of(translationRequest.getText().split(" "));
@@ -48,7 +49,7 @@ public class TranslationProcess {
             try {
                 String response = restTemplate.getForObject(url, String.class, sourceLanguage, targetLanguage, word);
 
-                JsonNode rootNode = new ObjectMapper().readTree(response);
+                JsonNode rootNode = objectMapper.readTree(response);
 
                 return rootNode.get(0).get(0).get(0).asText();
             } catch (JsonProcessingException e) {
