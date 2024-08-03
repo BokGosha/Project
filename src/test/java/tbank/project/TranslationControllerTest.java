@@ -1,69 +1,85 @@
 package tbank.project;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.ResponseEntity;
-import jakarta.servlet.http.HttpServletRequest;
-import java.sql.SQLException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
+import org.springframework.web.server.ResponseStatusException;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@WebMvcTest(controllers = TranslationController.class)
 public class TranslationControllerTest {
-    @Mock
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
     private TranslationService translationService;
 
-    @Mock
-    private HttpServletRequest request;
-
-    @InjectMocks
-    private TranslationController translationController;
-
     @Test
-    public void testTranslateWords_ValidLanguages() throws SQLException {
-        String text = "Hello";
+    public void testTranslateWords() throws Exception {
+        String text = "Hello, world!";
+        String clientIp = "127.0.0.1";
         String sourceLanguage = "en";
         String targetLanguage = "ru";
-        String clientIp = "127.0.0.1";
-        String translatedText = "Привет";
+        String translatedText = "Привет, мир!";
 
-        when(request.getRemoteAddr()).thenReturn(clientIp);
-        when(translationService.giveTranslation(clientIp, text, sourceLanguage, targetLanguage))
-                .thenReturn(translatedText);
+        when(translationService.giveTranslation(clientIp, text, sourceLanguage, targetLanguage)).
+                thenReturn(translatedText);
 
-        ResponseEntity<String> response = translationController.translateWords(text, sourceLanguage, targetLanguage,
-                request);
-
-        assertEquals(ResponseEntity.ok(translatedText), response);
+        mockMvc.perform(MockMvcRequestBuilders.get("/translate")
+                        .param("words", text)
+                        .param("sourceLanguage", sourceLanguage)
+                        .param("targetLanguage", targetLanguage)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().string(translatedText));
     }
 
     @Test
-    public void testTranslateWords_UnsupportedSourceLanguage() throws SQLException {
-        String text = "Hello";
+    public void testTranslateWordsWithInvalidSourceLanguage() throws Exception {
+        String text = "Hello, world!";
+        String clientIp = "127.0.0.1";
         String sourceLanguage = "xx";
         String targetLanguage = "ru";
 
-        ResponseEntity<String> response = translationController.translateWords(text, sourceLanguage, targetLanguage,
-                request);
+        when(translationService.giveTranslation(clientIp, text, sourceLanguage, targetLanguage)).
+                thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Язык источника " + sourceLanguage +
+                        " не поддерживается Google Translate."));
 
-        assertEquals(ResponseEntity.badRequest()
-                .body("Язык источника " + sourceLanguage + " не поддерживается Google Translate."), response);
+        mockMvc.perform(MockMvcRequestBuilders.get("/translate")
+                        .param("words", text)
+                        .param("sourceLanguage", sourceLanguage)
+                        .param("targetLanguage", targetLanguage)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(MockMvcResultMatchers.content().string("Язык источника " + sourceLanguage +
+                        " не поддерживается Google Translate."));
     }
 
     @Test
-    public void testTranslateWords_UnsupportedTargetLanguage() throws SQLException {
-        String text = "Hello";
+    public void testTranslateWordsWithInvalidTargetLanguage() throws Exception {
+        String text = "Hello, world!";
+        String clientIp = "127.0.0.1";
         String sourceLanguage = "en";
-        String targetLanguage = "xx";
+        String targetLanguage = "yy";
 
-        ResponseEntity<String> response = translationController.translateWords(text, sourceLanguage, targetLanguage,
-                request);
+        when(translationService.giveTranslation(clientIp, text, sourceLanguage, targetLanguage)).
+                thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Язык перевода " + targetLanguage +
+                        " не поддерживается Google Translate."));
 
-        assertEquals(ResponseEntity.badRequest()
-                .body("Язык перевода " + targetLanguage + " не поддерживается Google Translate."), response);
+        mockMvc.perform(MockMvcRequestBuilders.get("/translate")
+                        .param("words", text)
+                        .param("sourceLanguage", sourceLanguage)
+                        .param("targetLanguage", targetLanguage)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(MockMvcResultMatchers.content().string("Язык перевода " + targetLanguage +
+                        " не поддерживается Google Translate."));
     }
 }
