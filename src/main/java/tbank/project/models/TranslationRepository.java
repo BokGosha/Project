@@ -1,10 +1,9 @@
-package tbank.project;
+package tbank.project.models;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
-import tbank.project.models.Translation;
 
 @Repository
 @RequiredArgsConstructor
