@@ -1,9 +1,11 @@
-package tbank.project;
+package tbank.project.services;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import tbank.project.SupportedLanguages;
+import tbank.project.models.TranslationRepository;
 import tbank.project.models.Translation;
 import tbank.project.models.TranslationRequest;
 
